@@ -28,17 +28,19 @@ fraud-service/
 
 1. 가상환경 생성 및 의존성 설치
    ```text
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
 2. 모델 학습
-python -m scripts.train --data_dir data/raw --out_dir models/v1
-
+   ```text
+   python -m scripts.train --data_dir data/raw --out_dir models/v1
+   text
 3. API 실행
-python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
-
+   ```text
+   python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+   ```
 4. 브라우저에서 확인
-
-👉 http://127.0.0.1:8000/docs
- 
+   ```text
+    http://127.0.0.1:8000/docs
+    ```
