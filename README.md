@@ -1,11 +1,9 @@
-# 🛡️ Fraud Detection Service (IEEE-CIS 스타일) — Preprocess + Model + FastAPI + Docker
+#  Fraud Detection Service (IEEE-CIS 스타일) — Preprocess + Model + FastAPI + Docker
 
-**한 줄 요약**: 전처리 + 모델을 **하나의 파이프라인**으로 묶고, `FastAPI`로 **/predict** (엔지니어드), **/predict_raw** (원본 칼럼) 엔드포인트를 제공합니다.  
-오늘 바로 배포 가능한 **V1 뼈대**이며, 이후 카글 1등 솔루션 피처들을 점진적으로 이식할 수 있도록 구조화되어 있습니다.
+: 전처리 + 모델을 **하나의 파이프라인**으로 묶고, `FastAPI`로 **/predict** , **/predict_raw** (원본 칼럼) 엔드포인트 제공
+--
 
----
-
-## 0) 빠른 시작 (로컬)
+## 0) 
 
 ```bash
 # 0. 파이썬 3.10 기준 권장
@@ -60,8 +58,8 @@ fraud-service/
 
 ## 2) 엔드포인트 개요
 
-- `POST /predict_raw` : **원본 Kaggle 컬럼** 입력 → 전처리 수행 → 확률 + (선택) 중요도 반환
-- `POST /predict`     : **이미 엔지니어드 된 벡터** 입력 (`features: list[float]`) → 확률 반환 (기존 호환)
+- `POST /predict_raw` : "raw data 컬럼" 입력 → 전처리 수행 → 확률 + (선택) 중요도 반환
+- `POST /predict`     : "feature engineering 된 컬럼" 입력 (`features: list[float]`) → 확률 반환 (기존 호환)
 - `GET /health`       : 상태 확인
 
 ### 예시: `/predict_raw`
@@ -88,7 +86,7 @@ fraud-service/
 }
 ```
 
-## 3) 학습 & 내보내기
+## 3) 학습 & 결과
 
 ```bash
 # data/raw/ 밑에 kaggle train_transaction.csv, train_identity.csv 배치
@@ -111,16 +109,6 @@ docker run --rm -p 8000:8000 -e MODEL_DIR=/app/models/v1 fraud-api:latest
 # http://127.0.0.1:8000/docs
 ```
 
-## 5) GitHub 푸시 (기본)
-
-```bash
-git init
-git checkout -b main
-git add .
-git commit -m "init: fraud-service skeleton"
-git remote add origin https://github.com/<YOUR_ID>/<REPO_NAME>.git
-git push -u origin main
-```
 
 ## 6) 오늘 배포를 위한 Tip
 
