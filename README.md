@@ -22,7 +22,7 @@ fraud-service/
 ├── tests/             # 간단한 테스트 코드
 ├── requirements.txt   # 의존성 패키지 목록
 └── README.md
-
+```
 
 ### 실행방법
 
