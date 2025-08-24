@@ -27,10 +27,11 @@ fraud-service/
 ### 실행방법
 
 1. 가상환경 생성 및 의존성 설치
+   ```text
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-
+```
 2. 모델 학습
 python -m scripts.train --data_dir data/raw --out_dir models/v1
 
