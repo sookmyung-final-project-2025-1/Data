@@ -1,8 +1,8 @@
 
 ### Fraud Detection 
 
-간단한 사기 거래 탐지 API 프로젝트입니다.  
-모델 학습, 전처리, API 서버 실행을 포함합니다.
+- 사기 거래 탐지 API
+- 모델 학습, 전처리, API 서버 실행
 
 ---
 
@@ -23,24 +23,21 @@ fraud-service/
 ├── requirements.txt   # 의존성 패키지 목록
 └── README.md
 
- 실행 방법 
 
-가상환경 생성 및 의존성 설치
+### 실행방법
 
+1. 가상환경 생성 및 의존성 설치
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-
-모델 학습
-
+2. 모델 학습
 python -m scripts.train --data_dir data/raw --out_dir models/v1
 
-
-API 실행
-
+3. API 실행
 python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 
+4. 브라우저에서 확인
 
-브라우저에서 확인
 👉 http://127.0.0.1:8000/docs
+ 
