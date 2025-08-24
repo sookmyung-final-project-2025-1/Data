@@ -1,6 +1,6 @@
-#  Fraud Detection Service (IEEE-CIS 스타일) — Preprocess + Model + FastAPI + Docker
+#  Fraud Detection
 
-: 전처리 + 모델을 **하나의 파이프라인**으로 묶고, `FastAPI`로 **/predict** , **/predict_raw** (원본 칼럼) 엔드포인트 제공
+### 전처리 + 모델을 **하나의 파이프라인**으로 묶고, `FastAPI`로 **/predict** , **/predict_raw** (원본 칼럼) 엔드포인트 제공
 --
 
 ## 0) 
