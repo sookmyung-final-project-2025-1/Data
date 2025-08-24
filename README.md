@@ -35,7 +35,7 @@ fraud-service/
 2. 모델 학습
    ```text
    python -m scripts.train --data_dir data/raw --out_dir models/v1
-   text
+   ```
 3. API 실행
    ```text
    python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
