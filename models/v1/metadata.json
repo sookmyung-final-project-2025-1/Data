@@ -1,0 +1,72 @@
+{
+  "feature_order": [
+    "hour",
+    "dow",
+    "day",
+    "is_weekend",
+    "amt",
+    "amt_log",
+    "amt_cents",
+    "dist1",
+    "dist2",
+    "ProductCD_le",
+    "card4_le",
+    "card6_le",
+    "P_emaildomain_le",
+    "card1_freq",
+    "card2_freq",
+    "addr1_freq",
+    "P_emaildomain_freq",
+    "card4_isna",
+    "TransactionAmt_isna",
+    "card6_isna",
+    "card2_isna",
+    "P_emaildomain_isna",
+    "addr1_isna",
+    "TransactionDT_isna",
+    "dist2_isna",
+    "dist1_isna",
+    "card1_isna",
+    "ProductCD_isna"
+  ],
+  "training_rows": 472432,
+  "valid_rows": 118108,
+  "config": {
+    "seed": 42,
+    "reference_date": "2017-12-01",
+    "train": {
+      "lgbm_params": {
+        "n_estimators": 800,
+        "learning_rate": 0.05,
+        "num_leaves": 64,
+        "max_depth": -1,
+        "subsample": 0.8,
+        "colsample_bytree": 0.8,
+        "reg_alpha": 0.1,
+        "reg_lambda": 0.1
+      },
+      "test_size": 0.2,
+      "early_stopping_rounds": 50
+    },
+    "features": {
+      "cats": [
+        "ProductCD",
+        "card4",
+        "card6",
+        "P_emaildomain"
+      ],
+      "freqs": [
+        "card1",
+        "card2",
+        "addr1",
+        "P_emaildomain"
+      ],
+      "nums": [
+        "TransactionAmt",
+        "dist1",
+        "dist2"
+      ],
+      "use_missing_flags": true
+    }
+  }
+}

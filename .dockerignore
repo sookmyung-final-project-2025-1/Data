@@ -1,0 +1,12 @@
+.git
+.venv
+__pycache__
+*.ipynb
+data
+tests
+dist
+build
+models/*.pkl
+models/*.json
+.env
+README.md

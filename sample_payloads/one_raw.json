@@ -1,0 +1,13 @@
+{
+  "payload": {
+    "TransactionDT": 172800,
+    "TransactionAmt": 123.45,
+    "ProductCD": "W",
+    "card1": 12345, "card2": 150, "card3": 150, "card4": "visa",
+    "card5": 226, "card6": "debit",
+    "addr1": 299, "addr2": 87,
+    "P_emaildomain": "gmail.com"
+  },
+  "explain": true,
+  "top_n": 5
+}

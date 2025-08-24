@@ -1,0 +1,19 @@
+seed: 42
+reference_date: "2017-12-01"   # TransactionDT 기준일(초 offset)
+train:
+  lgbm_params:
+    n_estimators: 800
+    learning_rate: 0.05
+    num_leaves: 64
+    max_depth: -1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    reg_alpha: 0.1
+    reg_lambda: 0.1
+  test_size: 0.2
+  early_stopping_rounds: 50
+features:
+  cats: ["ProductCD", "card4", "card6", "P_emaildomain"]
+  freqs: ["card1", "card2", "addr1", "P_emaildomain"]
+  nums: ["TransactionAmt", "dist1", "dist2"]
+  use_missing_flags: true

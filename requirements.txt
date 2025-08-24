@@ -1,0 +1,18 @@
+# Core
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.4.2
+lightgbm==4.6.0
+
+# API
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+pydantic==2.7.1
+python-dotenv==1.0.1
+
+# Explainability (optional but useful)
+shap==0.45.1
+
+# Utils
+joblib==1.4.2
+pyyaml==6.0.1
