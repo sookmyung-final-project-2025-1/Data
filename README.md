@@ -24,7 +24,7 @@ fraud-service/
 ├── models/
 └── data/
 엔드포인트
-POST /predict_raw : 원본 컬럼 입력 → 전처리 → 확률(+옵션: SHAP)
+POST /predict_raw : 원본 컬럼 입력 → 전처리 → 확률 (+옵션: SHAP)
 
 POST /predict : 전처리된 feature 입력 → 확률
 
@@ -48,18 +48,3 @@ V1: 간단 전처리 + LightGBM
 V2: UID 기반 피처 + 시간 기반 CV + 앙상블 + UID 평균 후처리
 
 /predict_raw → SHAP 설명 제공
-
-Kaggle 1등팀 요약
-UID 생성: 카드/주소/email 조합
-
-집계 피처: 최근 N시간 카운트/평균
-
-모델: XGB/LGBM/CatBoost 앙상블
-
-검증: 시간순 KFold
-
-후처리: UID 평균 스무딩
-
-yaml
-복사
-편집
