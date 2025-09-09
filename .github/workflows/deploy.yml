@@ -25,39 +25,39 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USER }}/fraud-model:latest,${{ secrets.DOCKERHUB_USER }}/fraud-model:${{ github.sha }}
 
-      # - name: SSH to Raspberry Pi & deploy
-      #   uses: appleboy/ssh-action@v1.0.3
-      #   with:
-      #     host: ${{ secrets.SSH_HOST }}
-      #     port: ${{ secrets.SSH_PORT }}
-      #     username: ${{ secrets.SSH_USER }}
-      #     password: ${{ secrets.SSH_PASSWORD }}
-      #     script_stop: true
-      #     script: |
-      #       set -e
-      #       COMPOSE_DIR="/home/1117mg/actions-runner/_work/backend/backend"
-      #       cd "$COMPOSE_DIR"
+      - name: SSH to Raspberry Pi & deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script_stop: true
+          script: |
+            set -e
+            COMPOSE_DIR="/home/1117mg/actions-runner/_work/backend/backend"
+            cd "$COMPOSE_DIR"
 
-      #       PW="${{ secrets.SSH_PASSWORD }}"
-      #       # sudo 권한으로 docker login (토큰은 docker에, 패스워드는 sudo에 각각 전달)
-      #       echo "$PW" | sudo -S bash -c "echo '${{ secrets.DOCKERHUB_TOKEN }}' | docker login -u '${{ secrets.DOCKERHUB_USER }}' --password-stdin"
+            PW="${{ secrets.SSH_PASSWORD }}"
+            # sudo 권한으로 docker login (토큰은 docker에, 패스워드는 sudo에 각각 전달)
+            echo "$PW" | sudo -S bash -c "echo '${{ secrets.DOCKERHUB_TOKEN }}' | docker login -u '${{ secrets.DOCKERHUB_USER }}' --password-stdin"
 
-      #       # 최신 모델 이미지 pull
-      #       echo "$PW" | sudo -S docker pull ${{ secrets.DOCKERHUB_USER }}/fraud-model:latest
+            # 최신 모델 이미지 pull
+            echo "$PW" | sudo -S docker pull ${{ secrets.DOCKERHUB_USER }}/fraud-model:latest
 
-      #       # model + nginx만 재기동
-      #       echo "$PW" | sudo -S docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate model nginx
+            # model + nginx만 재기동
+            echo "$PW" | sudo -S docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate model nginx
 
-      #       # 헬스체크
-      #       for i in {1..12}; do
-      #         if curl -fsSLk https://localhost/model/health | grep -q '"status":"ok"'; then
-      #           echo "Model is healthy"
-      #           exit 0
-      #         fi
-      #         echo "waiting... ($i/12)"; sleep 5
-      #       done
+            # 헬스체크
+            for i in {1..12}; do
+              if curl -fsSLk https://localhost/model/health | grep -q '"status":"ok"'; then
+                echo "Model is healthy"
+                exit 0
+              fi
+              echo "waiting... ($i/12)"; sleep 5
+            done
 
-      #       echo "$PW" | sudo -S docker ps
-      #       MID=$(echo "$PW" | sudo -S docker ps -qf "name=model")
-      #       [ -n "$MID" ] && echo "$PW" | sudo -S docker logs "$MID" --tail=200
-      #       exit 1
+            echo "$PW" | sudo -S docker ps
+            MID=$(echo "$PW" | sudo -S docker ps -qf "name=model")
+            [ -n "$MID" ] && echo "$PW" | sudo -S docker logs "$MID" --tail=200
+            exit 1
