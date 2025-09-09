@@ -51,8 +51,10 @@ jobs:
             echo "$PW" | sudo -S docker pull ${{ secrets.DOCKERHUB_USER }}/fraud-model:latest
 
             # .env 강제 지정
-            echo "$PW" | sudo -S env ENV_FILE=.env \
-              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate model nginx
+            echo "$PW" | sudo -S env DOCKERHUB_USER='${{ secrets.DOCKERHUB_USER }}' ENV_FILE=.env \
+              docker compose --env-file .env \
+                -f docker-compose.yml -f docker-compose.prod.yml \
+                up -d --no-deps --force-recreate model nginx
 
             # 헬스체크
             for i in {1..12}; do
