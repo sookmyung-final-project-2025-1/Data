@@ -39,14 +39,20 @@ jobs:
             cd "$COMPOSE_DIR"
 
             PW="${{ secrets.SSH_PASSWORD }}"
-            # sudo 권한으로 docker login (토큰은 docker에, 패스워드는 sudo에 각각 전달)
-            echo "$PW" | sudo -S bash -c "echo '${{ secrets.DOCKERHUB_TOKEN }}' | docker login -u '${{ secrets.DOCKERHUB_USER }}' --password-stdin"
+            git fetch origin main || true
+            git reset --hard origin/main || true
 
-            # 최신 모델 이미지 pull
+            [ -f .env ] || [ -f .env.prod ] || { echo "ERR: no .env or .env.prod"; exit 1; }
+            [ -f .env ]      || cp .env.prod .env
+            [ -f .env.prod ] || cp .env .env.prod
+
+            # docker login + 최신 모델 이미지 pull
+            echo "$PW" | sudo -S bash -c "echo '${{ secrets.DOCKERHUB_TOKEN }}' | docker login -u '${{ secrets.DOCKERHUB_USER }}' --password-stdin"
             echo "$PW" | sudo -S docker pull ${{ secrets.DOCKERHUB_USER }}/fraud-model:latest
 
-            # model + nginx만 재기동
-            echo "$PW" | sudo -S docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate model nginx
+            # .env 강제 지정
+            echo "$PW" | sudo -S env ENV_FILE=.env \
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate model nginx
 
             # 헬스체크
             for i in {1..12}; do
