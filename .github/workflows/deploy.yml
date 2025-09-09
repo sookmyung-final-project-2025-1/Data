@@ -6,39 +6,58 @@ on:
 
 jobs:
   build-and-deploy:
-    runs-on: self-hosted
+    runs-on: self-hosted  # (맥 러너여도 OK)
 
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
         with:
-          path: model
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build model image (local)
-        working-directory: ./model
-        run: |
-          echo "=== Build fraud-model ==="
-          sudo docker rmi fraud-model:latest || true
-          sudo docker builder prune -f || true
-          docker build --no-cache --pull -t fraud-model:latest .
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USER }}/fraud-model:latest,${{ secrets.DOCKERHUB_USER }}/fraud-model:${{ github.sha }}
 
-      - name: Restart model (+ nginx) via backend compose
-        run: |
-          echo "=== Restart model & nginx via backend compose ==="
-          cd /home/1117mg/actions-runner/_work/backend/backend
-          sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate model nginx
+      # - name: SSH to Raspberry Pi & deploy
+      #   uses: appleboy/ssh-action@v1.0.3
+      #   with:
+      #     host: ${{ secrets.SSH_HOST }}
+      #     port: ${{ secrets.SSH_PORT }}
+      #     username: ${{ secrets.SSH_USER }}
+      #     password: ${{ secrets.SSH_PASSWORD }}
+      #     script_stop: true
+      #     script: |
+      #       set -e
+      #       COMPOSE_DIR="/home/1117mg/actions-runner/_work/backend/backend"
+      #       cd "$COMPOSE_DIR"
 
-      - name: Health check (/model/health)
-        run: |
-          for i in {1..12}; do
-            if curl -fsSLk https://localhost/model/health | grep -q '"status":"ok"'; then
-              echo "Model endpoint is up"
-              exit 0
-            fi
-            echo "Waiting model... ($i/12)"
-            sleep 5
-          done
-          echo "Model failed to become healthy"
-          sudo docker ps
-          MID=$(sudo docker ps -qf "name=model")
-          [ -n "$MID" ] && sudo docker logs "$MID" --tail=200
-          exit 1
+      #       PW="${{ secrets.SSH_PASSWORD }}"
+      #       # sudo 권한으로 docker login (토큰은 docker에, 패스워드는 sudo에 각각 전달)
+      #       echo "$PW" | sudo -S bash -c "echo '${{ secrets.DOCKERHUB_TOKEN }}' | docker login -u '${{ secrets.DOCKERHUB_USER }}' --password-stdin"
+
+      #       # 최신 모델 이미지 pull
+      #       echo "$PW" | sudo -S docker pull ${{ secrets.DOCKERHUB_USER }}/fraud-model:latest
+
+      #       # model + nginx만 재기동
+      #       echo "$PW" | sudo -S docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate model nginx
+
+      #       # 헬스체크
+      #       for i in {1..12}; do
+      #         if curl -fsSLk https://localhost/model/health | grep -q '"status":"ok"'; then
+      #           echo "Model is healthy"
+      #           exit 0
+      #         fi
+      #         echo "waiting... ($i/12)"; sleep 5
+      #       done
+
+      #       echo "$PW" | sudo -S docker ps
+      #       MID=$(echo "$PW" | sudo -S docker ps -qf "name=model")
+      #       [ -n "$MID" ] && echo "$PW" | sudo -S docker logs "$MID" --tail=200
+      #       exit 1
