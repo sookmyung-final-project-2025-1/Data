@@ -1,0 +1,44 @@
+name: Deploy Model to Raspberry Pi
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: model
+
+      - name: Build model image (local)
+        working-directory: ./model
+        run: |
+          echo "=== Build fraud-model ==="
+          sudo docker rmi fraud-model:latest || true
+          sudo docker builder prune -f || true
+          docker build --no-cache --pull -t fraud-model:latest .
+
+      - name: Restart model (+ nginx) via backend compose
+        run: |
+          echo "=== Restart model & nginx via backend compose ==="
+          cd /home/1117mg/actions-runner/_work/backend/backend
+          sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate model nginx
+
+      - name: Health check (/model/health)
+        run: |
+          for i in {1..12}; do
+            if curl -fsSLk https://localhost/model/health | grep -q '"status":"ok"'; then
+              echo "Model endpoint is up"
+              exit 0
+            fi
+            echo "Waiting model... ($i/12)"
+            sleep 5
+          done
+          echo "Model failed to become healthy"
+          sudo docker ps
+          MID=$(sudo docker ps -qf "name=model")
+          [ -n "$MID" ] && sudo docker logs "$MID" --tail=200
+          exit 1
