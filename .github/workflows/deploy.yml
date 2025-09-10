@@ -85,7 +85,7 @@ jobs:
                 up -d --no-deps --force-recreate model nginx
 
             for i in {1..12}; do
-              if curl -fsSLk https://localhost/model/health 2>/dev/null | grep -q '"status":"ok"'; then
+              if curl -fsSLk https://localhost/health 2>/dev/null | grep -q '"status":"ok"'; then
                 echo "Model is healthy"
                 exit 0
               fi

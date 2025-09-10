@@ -8,7 +8,7 @@ from src.fraud.explain import explain_shap
 
 MODEL_DIR = os.environ.get("MODEL_DIR", "models/v1")
 
-app = FastAPI(title="Fraud Detection API", version="1.0")
+app = FastAPI(title="Fraud Detection API", version="1.0", root_path="/model",)
 
 app.add_middleware(
     CORSMiddleware,
