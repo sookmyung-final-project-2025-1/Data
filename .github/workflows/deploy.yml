@@ -4,14 +4,26 @@ on:
   push:
     branches: [ main ]
 
+env:
+  IMAGE: ${{ secrets.DOCKERHUB_USER }}/fraud-model
+  VERSION: v1-${{ github.run_number }}-${{ github.sha }}
+
 jobs:
   build-and-deploy:
-    runs-on: self-hosted  # (맥 러너여도 OK)
+    runs-on: self-hosted
 
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
+
+      - name: Download model artifacts
+        run: |
+          mkdir -p models/v1
+          curl -fsSL -o models/v1/preprocessor.pkl "${{ secrets.MODEL_PRE_URL }}"
+          curl -fsSL -o models/v1/model.pkl        "${{ secrets.MODEL_BIN_URL }}"
+          curl -fsSL -o models/v1/metadata.json    "${{ secrets.MODEL_META_URL }}"
+          ls -lh models/v1
 
       - uses: docker/login-action@v3
         with:
@@ -23,7 +35,9 @@ jobs:
           context: .
           platforms: linux/arm64
           push: true
-          tags: ${{ secrets.DOCKERHUB_USER }}/fraud-model:latest,${{ secrets.DOCKERHUB_USER }}/fraud-model:${{ github.sha }}
+          tags: |
+            ${{ env.IMAGE }}:${{ env.VERSION }}
+            ${{ env.IMAGE }}:latest
 
       - name: SSH to Raspberry Pi & deploy
         uses: appleboy/ssh-action@v1.0.3
@@ -46,17 +60,18 @@ jobs:
             [ -f .env ]      || cp .env.prod .env
             [ -f .env.prod ] || cp .env .env.prod
 
-            # docker login + 최신 모델 이미지 pull
             echo "$PW" | sudo -S bash -c "echo '${{ secrets.DOCKERHUB_TOKEN }}' | docker login -u '${{ secrets.DOCKERHUB_USER }}' --password-stdin"
-            echo "$PW" | sudo -S docker pull ${{ secrets.DOCKERHUB_USER }}/fraud-model:latest
 
-            # .env 강제 지정
-            echo "$PW" | sudo -S env DOCKERHUB_USER='${{ secrets.DOCKERHUB_USER }}' ENV_FILE=.env \
+            echo "$PW" | sudo -S docker pull "${{ env.IMAGE }}:${{ env.VERSION }}"
+
+            echo "$PW" | sudo -SE \
+              DOCKERHUB_USER='${{ secrets.DOCKERHUB_USER }}' \
+              MODEL_TAG='${{ env.VERSION }}' \
+              ENV_FILE=.env \
               docker compose --env-file .env \
                 -f docker-compose.yml -f docker-compose.prod.yml \
                 up -d --no-deps --force-recreate model nginx
 
-            # 헬스체크
             for i in {1..12}; do
               if curl -fsSLk https://localhost/model/health | grep -q '"status":"ok"'; then
                 echo "Model is healthy"
