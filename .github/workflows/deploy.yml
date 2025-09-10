@@ -12,6 +12,10 @@ jobs:
   build-and-deploy:
     runs-on: self-hosted
 
+    concurrency:
+      group: deploy-main
+      cancel-in-progress: true
+
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -64,16 +68,24 @@ jobs:
 
             echo "$PW" | sudo -S docker pull "${{ env.IMAGE }}:${{ env.VERSION }}"
 
+            # 새 태그를 .env/.env.prod에 확정 반영
+            if [ -f .env ]; then
+              sudo sed -i "s|^MODEL_IMAGE=.*|MODEL_IMAGE=${{ env.IMAGE }}:${{ env.VERSION }}|" .env
+            fi
+            if [ -f .env.prod ]; then
+              sudo sed -i "s|^MODEL_IMAGE=.*|MODEL_IMAGE=${{ env.IMAGE }}:${{ env.VERSION }}|" .env.prod
+            fi
+
             echo "$PW" | sudo -SE \
               DOCKERHUB_USER='${{ secrets.DOCKERHUB_USER }}' \
-              MODEL_TAG='${{ env.VERSION }}' \
+              MODEL_IMAGE='${{ env.IMAGE }}:${{ env.VERSION }}' \
               ENV_FILE=.env \
               docker compose --env-file .env \
                 -f docker-compose.yml -f docker-compose.prod.yml \
                 up -d --no-deps --force-recreate model nginx
 
             for i in {1..12}; do
-              if curl -fsSLk https://localhost/model/health | grep -q '"status":"ok"'; then
+              if curl -fsSLk https://localhost/model/health 2>/dev/null | grep -q '"status":"ok"'; then
                 echo "Model is healthy"
                 exit 0
               fi
