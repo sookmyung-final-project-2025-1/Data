@@ -40,7 +40,11 @@ fraud-service/
    ```text
    python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
    ```
-4. 브라우저에서 확인
+4. 브라우저에서 확인 (로컬)
    ```text
     http://127.0.0.1:8000/docs
+    ```
+5. 브라우저에서 확인 (운영)
+   ```text
+    https://211.110.155.54/model/docs
     ```
