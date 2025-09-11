@@ -1,12 +1,15 @@
-name: Deploy Model to Raspberry Pi
+name: Deploy Model (self-hosted, no-ssh)
 
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 env:
   IMAGE: ${{ secrets.DOCKERHUB_USER }}/fraud-model
   VERSION: v1-${{ github.run_number }}-${{ github.sha }}
+  # backend compose가 있는 호스트 경로
+  COMPOSE_DIR: /home/1117mg/actions-runner/_work/backend/backend
 
 jobs:
   build-and-deploy:
@@ -18,23 +21,25 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
       - name: Download model artifacts
         run: |
+          set -euo pipefail
           mkdir -p models/v1
           curl -fsSL -o models/v1/preprocessor.pkl "${{ secrets.MODEL_PRE_URL }}"
           curl -fsSL -o models/v1/model.pkl        "${{ secrets.MODEL_BIN_URL }}"
           curl -fsSL -o models/v1/metadata.json    "${{ secrets.MODEL_META_URL }}"
           ls -lh models/v1
 
-      - uses: docker/login-action@v3
+      - name: Docker login
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
+      - name: Build & Push model image (with cache)
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/arm64
@@ -42,57 +47,65 @@ jobs:
           tags: |
             ${{ env.IMAGE }}:${{ env.VERSION }}
             ${{ env.IMAGE }}:latest
+          cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max
+          provenance: false
 
-      - name: SSH to Raspberry Pi & deploy
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          port: ${{ secrets.SSH_PORT }}
-          username: ${{ secrets.SSH_USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          script_stop: true
-          script: |
-            set -e
-            COMPOSE_DIR="/home/1117mg/actions-runner/_work/backend/backend"
-            cd "$COMPOSE_DIR"
+      - name: Deploy locally on runner (no SSH)
+        run: |
+          set -euo pipefail
 
-            PW="${{ secrets.SSH_PASSWORD }}"
-            git fetch origin main || true
-            git reset --hard origin/main || true
-
-            [ -f .env ] || [ -f .env.prod ] || { echo "ERR: no .env or .env.prod"; exit 1; }
-            [ -f .env ]      || cp .env.prod .env
-            [ -f .env.prod ] || cp .env .env.prod
-
-            echo "$PW" | sudo -S bash -c "echo '${{ secrets.DOCKERHUB_TOKEN }}' | docker login -u '${{ secrets.DOCKERHUB_USER }}' --password-stdin"
-
-            echo "$PW" | sudo -S docker pull "${{ env.IMAGE }}:${{ env.VERSION }}"
-
-            # 새 태그를 .env/.env.prod에 확정 반영
-            if [ -f .env ]; then
-              sudo sed -i "s|^MODEL_IMAGE=.*|MODEL_IMAGE=${{ env.IMAGE }}:${{ env.VERSION }}|" .env
-            fi
-            if [ -f .env.prod ]; then
-              sudo sed -i "s|^MODEL_IMAGE=.*|MODEL_IMAGE=${{ env.IMAGE }}:${{ env.VERSION }}|" .env.prod
-            fi
-
-            echo "$PW" | sudo -SE \
-              DOCKERHUB_USER='${{ secrets.DOCKERHUB_USER }}' \
-              MODEL_IMAGE='${{ env.IMAGE }}:${{ env.VERSION }}' \
-              ENV_FILE=.env \
-              docker compose --env-file .env \
-                -f docker-compose.yml -f docker-compose.prod.yml \
-                up -d --no-deps --force-recreate model nginx
-
-            for i in {1..12}; do
-              if curl -fsSLk https://localhost/health 2>/dev/null | grep -q '"status":"ok"'; then
-                echo "Model is healthy"
-                exit 0
-              fi
-              echo "waiting... ($i/12)"; sleep 5
-            done
-
-            echo "$PW" | sudo -S docker ps
-            MID=$(echo "$PW" | sudo -S docker ps -qf "name=model")
-            [ -n "$MID" ] && echo "$PW" | sudo -S docker logs "$MID" --tail=200
+          # 1) backend compose 디렉토리 존재 확인(+있다면 최신화)
+          if [ ! -d "${COMPOSE_DIR}" ]; then
+            echo "ERR: compose dir not found: ${COMPOSE_DIR}"
             exit 1
+          fi
+          if [ -d "${COMPOSE_DIR}/.git" ]; then
+            git -C "${COMPOSE_DIR}" fetch origin main || true
+            git -C "${COMPOSE_DIR}" reset --hard origin/main || true
+          fi
+
+          cd "${COMPOSE_DIR}"
+
+          # 2) .env 준비(.env/.env.prod 중 하나라도 있으면 정상 진행)
+          if [ ! -f .env ] && [ ! -f .env.prod ]; then
+            echo "ERR: no .env or .env.prod in ${COMPOSE_DIR}"
+            exit 1
+          fi
+          [ -f .env ]      || cp .env.prod .env
+          [ -f .env.prod ] || cp .env .env.prod
+
+          # 3) 새 이미지 미리 풀(속도+안정)
+          docker pull "${{ env.IMAGE }}:${{ env.VERSION }}"
+
+          # 4) compose 재기동 (파일은 건들지 않고, MODEL_IMAGE만 주입)
+          MODEL_IMAGE="${{ env.IMAGE }}:${{ env.VERSION }}" \
+          docker compose --env-file .env \
+            -f docker-compose.yml -f docker-compose.prod.yml \
+            up -d --no-deps --force-recreate model nginx
+
+          # 5) 헬스체크: Nginx → /model/health 경유로 모델 확인
+          ok=false
+          for i in {1..18}; do
+            if curl -fsSLk https://localhost/model/health | grep -q '"status":"ok"'; then
+              echo "Model is healthy"
+              ok=true
+              break
+            fi
+            echo "waiting... ($i/18)"; sleep 5
+          done
+
+          if [ "$ok" != "true" ]; then
+            echo "=== docker compose ps ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps || true
+            echo "=== model logs ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=200 model || true
+            echo "=== nginx logs ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=200 nginx || true
+            exit 1
+          fi
+
+      - name: Show running services
+        if: always()
+        run: |
+          docker ps
