@@ -1,14 +1,17 @@
-name: Deploy Model (self-hosted, no-ssh)
+name: Deploy Model
 
 on:
-  push:
-    branches: [ main ]
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.2.3)'
+        required: true
 
 env:
+  TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
   IMAGE: ${{ secrets.DOCKERHUB_USER }}/fraud-model
-  VERSION: v1-${{ github.run_number }}-${{ github.sha }}
-  # backend compose가 있는 호스트 경로
   COMPOSE_DIR: /home/1117mg/actions-runner/_work/backend/backend
 
 jobs:
@@ -16,21 +19,52 @@ jobs:
     runs-on: self-hosted
 
     concurrency:
-      group: deploy-main
+      group: deploy-model
       cancel-in-progress: true
 
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
 
-      - name: Download model artifacts
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          mkdir -p models/v1
-          curl -fsSL -o models/v1/preprocessor.pkl "${{ secrets.MODEL_PRE_URL }}"
-          curl -fsSL -o models/v1/model.pkl        "${{ secrets.MODEL_BIN_URL }}"
-          curl -fsSL -o models/v1/metadata.json    "${{ secrets.MODEL_META_URL }}"
-          ls -lh models/v1
+          
+          # v1.2.3 -> v1 추출
+          if [[ "$TAG" =~ ^v([0-9]+)\. ]]; then
+            MODEL_VER="v${BASH_REMATCH[1]}"
+          else
+            MODEL_VER="v1"
+          fi
+          
+          mkdir -p "models/${MODEL_VER}"
+          gh release download "${TAG}" -D "models/${MODEL_VER}"
+          echo "MODEL_VERSION=${MODEL_VER}" >> $GITHUB_ENV
+
+      - name: Validate release assets
+        run: |
+          MODEL_VER_DIR="models/${MODEL_VERSION}"
+          
+          # 필수 파일 검증
+          required_files=("preprocessor.pkl" "metadata.json")
+          for file in "${required_files[@]}"; do
+            if [ ! -f "${MODEL_VER_DIR}/${file}" ]; then
+              echo "ERROR: Required file missing: ${file}"
+              exit 1
+            fi
+          done
+          
+          # 최소 하나의 모델 파일 존재 확인
+          if ! ls ${MODEL_VER_DIR}/model*.pkl 1> /dev/null 2>&1; then
+            echo "ERROR: No model files found (model*.pkl)"
+            exit 1
+          fi
+          
+          echo "All required files validated"
+          ls -lh "${MODEL_VER_DIR}"
+
+      - uses: docker/setup-buildx-action@v3
 
       - name: Docker login
         uses: docker/login-action@v3
@@ -38,74 +72,73 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build & Push model image (with cache)
+      - name: Build & Push model image
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/arm64
           push: true
           tags: |
-            ${{ env.IMAGE }}:${{ env.VERSION }}
+            ${{ env.IMAGE }}:${{ env.TAG }}
             ${{ env.IMAGE }}:latest
-          cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
-          cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max
+          build-args: |
+            MODEL_VERSION=${{ env.MODEL_VERSION }}
           provenance: false
 
-      - name: Deploy locally on runner (no SSH)
+      - name: Deploy on runner
         run: |
           set -euo pipefail
-
-          # 1) backend compose 디렉토리 존재 확인(+있다면 최신화)
+          
           if [ ! -d "${COMPOSE_DIR}" ]; then
-            echo "ERR: compose dir not found: ${COMPOSE_DIR}"
+            echo "ERROR: Compose directory not found: ${COMPOSE_DIR}"
             exit 1
           fi
-          if [ -d "${COMPOSE_DIR}/.git" ]; then
-            git -C "${COMPOSE_DIR}" fetch origin main || true
-            git -C "${COMPOSE_DIR}" reset --hard origin/main || true
-          fi
-
+          
           cd "${COMPOSE_DIR}"
-
-          # 2) .env 준비(.env/.env.prod 중 하나라도 있으면 정상 진행)
-          if [ ! -f .env ] && [ ! -f .env.prod ]; then
-            echo "ERR: no .env or .env.prod in ${COMPOSE_DIR}"
-            exit 1
+          
+          if [ -d ".git" ]; then
+            git fetch origin main || true
+            git reset --hard origin/main || true
           fi
-          [ -f .env ]      || cp .env.prod .env
-          [ -f .env.prod ] || cp .env .env.prod
+          
+          # .env 파일 준비
+          if [ ! -f .env ] && [ -f .env.prod ]; then
+            cp .env.prod .env
+            echo "Copied .env.prod to .env"
+          fi
+          
+          # 환경변수 업데이트
+          if grep -q '^MODEL_IMAGE=' .env 2>/dev/null; then
+            sed -i "s#^MODEL_IMAGE=.*#MODEL_IMAGE=${IMAGE}:${TAG}#g" .env
+          else
+            echo "MODEL_IMAGE=${IMAGE}:${TAG}" >> .env
+          fi
 
-          # 3) 새 이미지 미리 풀(속도+안정)
-          docker pull "${{ env.IMAGE }}:${{ env.VERSION }}"
-
-          # 4) compose 재기동 (파일은 건들지 않고, MODEL_IMAGE만 주입)
-          MODEL_IMAGE="${{ env.IMAGE }}:${{ env.VERSION }}" \
-          docker compose --env-file .env \
-            -f docker-compose.yml -f docker-compose.prod.yml \
-            up -d --no-deps --force-recreate model nginx
-
-          # 5) 헬스체크: Nginx → /model/health 경유로 모델 확인
-          ok=false
+          if grep -q '^MODEL_VERSION=' .env 2>/dev/null; then
+            sed -i "s#^MODEL_VERSION=.*#MODEL_VERSION=${MODEL_VERSION}#g" .env
+          else
+            echo "MODEL_VERSION=${MODEL_VERSION}" >> .env
+          fi
+          
+          echo "Updated: MODEL_IMAGE=${IMAGE}:${TAG}, MODEL_VERSION=${MODEL_VERSION}"
+          
+          sudo docker pull "${IMAGE}:${TAG}"
+          sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate model nginx
+          
+          # 헬스체크
+          echo "Performing health check..."
           for i in {1..18}; do
             if curl -fsSLk https://localhost/model/health | grep -q '"status":"ok"'; then
-              echo "Model is healthy"
-              ok=true
-              break
+              echo "Model deployment successful: ${TAG}"
+              docker ps | grep model || true
+              exit 0
             fi
-            echo "waiting... ($i/18)"; sleep 5
+            echo "Waiting for model to be ready... ($i/18)"
+            sleep 5
           done
-
-          if [ "$ok" != "true" ]; then
-            echo "=== docker compose ps ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps || true
-            echo "=== model logs ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=200 model || true
-            echo "=== nginx logs ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=200 nginx || true
-            exit 1
-          fi
-
-      - name: Show running services
-        if: always()
-        run: |
-          docker ps
+          
+          # 배포 실패 시 진단
+          echo "Model deployment failed - collecting diagnostics:"
+          sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml ps model || true
+          sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=50 model || true
+          exit 1

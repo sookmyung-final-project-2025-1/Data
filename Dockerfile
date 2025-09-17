@@ -1,13 +1,16 @@
 FROM python:3.10-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libgomp1 \
+    build-essential libgomp1 curl \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    MODEL_DIR=/app/models/v1
+    PYTHONUNBUFFERED=1
+
+ARG MODEL_VERSION=v1
+ENV MODEL_VERSION=${MODEL_VERSION}
+ENV MODEL_DIR=/app/models/${MODEL_VERSION}
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
