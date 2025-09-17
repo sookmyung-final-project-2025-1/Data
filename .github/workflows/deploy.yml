@@ -31,7 +31,6 @@ jobs:
         run: |
           set -euo pipefail
           
-          # v1.2.3 -> v1 추출
           if [[ "$TAG" =~ ^v([0-9]+)\. ]]; then
             MODEL_VER="v${BASH_REMATCH[1]}"
           else
