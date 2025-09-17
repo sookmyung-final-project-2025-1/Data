@@ -25,51 +25,78 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install GitHub CLI
+        run: |
+          if ! command -v gh &> /dev/null; then
+            echo "Installing GitHub CLI..."
+            sudo mkdir -p /etc/apt/keyrings
+            wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+            sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt update
+            sudo apt install gh -y
+            echo "GitHub CLI installed successfully"
+          else
+            echo "GitHub CLI already installed"
+          fi
+
       - name: Download release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           
-          # GitHub CLI 설치
-          if ! command -v gh &> /dev/null; then
-            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-            sudo apt update
-            sudo apt install gh -y
-          fi
+          echo "Processing tag: ${TAG}"
           
-          # 기존 로직
           if [[ "$TAG" =~ ^v([0-9]+)\. ]]; then
             MODEL_VER="v${BASH_REMATCH[1]}"
           else
             MODEL_VER="v1"
           fi
           
+          echo "Model version: ${MODEL_VER}"
+          
+          # 디렉터리 생성
           mkdir -p "models/${MODEL_VER}"
-          gh release download "${TAG}" -D "models/${MODEL_VER}"
+          
+          # Release assets 다운로드
+          echo "Downloading release assets for tag ${TAG}..."
+          gh release download "${TAG}" -D "models/${MODEL_VER}" --clobber
+          
+          # 다운로드된 파일 확인
+          echo "Downloaded files:"
+          ls -lh "models/${MODEL_VER}"
+          
           echo "MODEL_VERSION=${MODEL_VER}" >> $GITHUB_ENV
 
       - name: Validate release assets
         run: |
           MODEL_VER_DIR="models/${MODEL_VERSION}"
           
+          echo "Validating files in ${MODEL_VER_DIR}"
+          
           # 필수 파일 검증
           required_files=("preprocessor.pkl" "metadata.json")
           for file in "${required_files[@]}"; do
             if [ ! -f "${MODEL_VER_DIR}/${file}" ]; then
               echo "ERROR: Required file missing: ${file}"
+              echo "Available files:"
+              ls -la "${MODEL_VER_DIR}" || echo "Directory does not exist"
               exit 1
             fi
+            echo "✓ Found: ${file}"
           done
           
           # 최소 하나의 모델 파일 존재 확인
           if ! ls ${MODEL_VER_DIR}/model*.pkl 1> /dev/null 2>&1; then
             echo "ERROR: No model files found (model*.pkl)"
+            echo "Available files:"
+            ls -la "${MODEL_VER_DIR}"
             exit 1
           fi
           
-          echo "All required files validated"
+          echo "✓ All required files validated"
+          echo "Final file list:"
           ls -lh "${MODEL_VER_DIR}"
 
       - uses: docker/setup-buildx-action@v3
@@ -91,11 +118,15 @@ jobs:
             ${{ env.IMAGE }}:latest
           build-args: |
             MODEL_VERSION=${{ env.MODEL_VERSION }}
+          cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max
           provenance: false
 
       - name: Deploy on runner
         run: |
           set -euo pipefail
+          
+          echo "Starting deployment..."
           
           if [ ! -d "${COMPOSE_DIR}" ]; then
             echo "ERROR: Compose directory not found: ${COMPOSE_DIR}"
@@ -103,19 +134,28 @@ jobs:
           fi
           
           cd "${COMPOSE_DIR}"
+          echo "Working in: $(pwd)"
           
+          # Git 업데이트
           if [ -d ".git" ]; then
+            echo "Updating backend repository..."
             git fetch origin main || true
             git reset --hard origin/main || true
           fi
           
           # .env 파일 준비
-          if [ ! -f .env ] && [ -f .env.prod ]; then
-            cp .env.prod .env
-            echo "Copied .env.prod to .env"
+          if [ ! -f .env ]; then
+            if [ -f .env.prod ]; then
+              cp .env.prod .env
+              echo "Copied .env.prod to .env"
+            else
+              echo "WARNING: No .env or .env.prod found, creating minimal .env"
+              touch .env
+            fi
           fi
           
           # 환경변수 업데이트
+          echo "Updating environment variables..."
           if grep -q '^MODEL_IMAGE=' .env 2>/dev/null; then
             sed -i "s#^MODEL_IMAGE=.*#MODEL_IMAGE=${IMAGE}:${TAG}#g" .env
           else
@@ -128,25 +168,44 @@ jobs:
             echo "MODEL_VERSION=${MODEL_VERSION}" >> .env
           fi
           
-          echo "Updated: MODEL_IMAGE=${IMAGE}:${TAG}, MODEL_VERSION=${MODEL_VERSION}"
+          echo "Environment updated:"
+          echo "  MODEL_IMAGE=${IMAGE}:${TAG}"
+          echo "  MODEL_VERSION=${MODEL_VERSION}"
           
+          echo "Pulling Docker image..."
           sudo docker pull "${IMAGE}:${TAG}"
+          
           sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate model nginx
           
           # 헬스체크
           echo "Performing health check..."
+          ok=false
           for i in {1..18}; do
             if curl -fsSLk https://localhost/model/health | grep -q '"status":"ok"'; then
-              echo "Model deployment successful: ${TAG}"
+              echo "✅ Model deployment successful: ${TAG}"
               docker ps | grep model || true
-              exit 0
+              ok=true
+              break
             fi
-            echo "Waiting for model to be ready... ($i/18)"
+            echo "⏳ Waiting for model to be ready... ($i/18)"
             sleep 5
           done
           
-          # 배포 실패 시 진단
-          echo "Model deployment failed - collecting diagnostics:"
-          sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml ps model || true
-          sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=50 model || true
-          exit 1
+          if [ "$ok" != "true" ]; then
+            echo "❌ Model deployment failed - collecting diagnostics:"
+            echo "=== Container Status ==="
+            sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml ps || true
+            echo "=== Model Logs ==="
+            sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=50 model || true
+            echo "=== Nginx Logs ==="
+            sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=20 nginx || true
+            exit 1
+          fi
+
+      - name: Show running services
+        if: always()
+        run: |
+          echo "=== Final Status ==="
+          docker ps
+          echo "=== Disk Usage ==="
+          docker system df
