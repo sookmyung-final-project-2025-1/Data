@@ -111,6 +111,22 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Clean up space before build
+        run: |
+          echo "=== Before cleanup ==="
+          df -h
+          
+          # Docker 정리
+          sudo docker system prune -af
+          sudo docker volume prune -f
+          
+          # Actions 캐시 정리
+          sudo rm -rf /home/1117mg/actions-runner-data/_diag/* || true
+          sudo rm -rf /home/1117mg/actions-runner-data/_work/_temp/* || true
+          
+          echo "=== After cleanup ==="
+          df -h
+
       - name: Build & Push model image
         uses: docker/build-push-action@v6
         with:
@@ -125,6 +141,12 @@ jobs:
           cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
           cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max
           provenance: false
+
+      - name: Cleanup after build
+        if: always()
+        run: |
+          sudo docker system prune -f
+          sudo docker image prune -f
 
       - name: Deploy on runner
         run: |
