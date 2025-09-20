@@ -103,6 +103,38 @@ jobs:
           echo "Final file list:"
           ls -lh "${MODEL_VER_DIR}"
 
+      - name: Restructure model files for container
+        run: |
+          MODEL_VER_DIR="models/${MODEL_VERSION}"
+          
+          echo "Restructuring model files for container deployment..."
+          
+          # 각 모델별 디렉토리 생성 및 파일 이동
+          models=("lgbm" "xgb" "cat")
+          for model in "${models[@]}"; do
+            model_subdir="${MODEL_VER_DIR}/${model}"
+            mkdir -p "${model_subdir}"
+            
+            # 원본 파일들을 표준 이름으로 복사
+            if [ -f "${MODEL_VER_DIR}/${model}_model.pkl" ]; then
+              cp "${MODEL_VER_DIR}/${model}_model.pkl" "${model_subdir}/model.pkl"
+              echo "✓ Copied ${model}_model.pkl -> ${model}/model.pkl"
+            fi
+            
+            if [ -f "${MODEL_VER_DIR}/${model}_preprocessor.pkl" ]; then
+              cp "${MODEL_VER_DIR}/${model}_preprocessor.pkl" "${model_subdir}/preprocessor.pkl"
+              echo "✓ Copied ${model}_preprocessor.pkl -> ${model}/preprocessor.pkl"
+            fi
+            
+            if [ -f "${MODEL_VER_DIR}/${model}_metadata.json" ]; then
+              cp "${MODEL_VER_DIR}/${model}_metadata.json" "${model_subdir}/metadata.json"
+              echo "✓ Copied ${model}_metadata.json -> ${model}/metadata.json"
+            fi
+          done
+          
+          echo "Final model directory structure:"
+          find "${MODEL_VER_DIR}" -type f | sort
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Docker login

@@ -16,6 +16,18 @@ class FraudModel:
         clf = joblib.load(model_path)
         return cls(pre, clf)
 
+    @classmethod
+    def load_files(cls, model_path: str, preprocessor_path: str) -> "FraudModel":
+        """개별 파일 경로로 모델 로드"""
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+        if not os.path.exists(preprocessor_path):
+            raise FileNotFoundError(f"Preprocessor file not found: {preprocessor_path}")
+        
+        pre = FraudPreprocessor.load(preprocessor_path)
+        clf = joblib.load(model_path)
+        return cls(pre, clf)
+
     def predict_proba_raw(self, payload: Dict[str, Any]) -> float:
         x = self.pre.transform_one(payload)
         p = float(self.clf.predict_proba([x])[0][1])
