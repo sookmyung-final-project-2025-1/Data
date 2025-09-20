@@ -208,7 +208,7 @@ jobs:
           echo "Performing health check..."
           ok=false
           for i in {1..18}; do
-            if curl -fsSLk http://localhost:8000/health | grep -q '"status":"ok"' 2>/dev/null || \
+            if sudo docker exec backend-model-1 curl -f http://localhost:8000/health | grep -q '"status":"ok"' 2>/dev/null || \
                curl -fsSLk http://model:8000/health | grep -q '"status":"ok"' 2>/dev/null; then
               echo "✅ Model deployment successful: ${TAG}"
               docker ps | grep model || true
