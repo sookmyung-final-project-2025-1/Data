@@ -55,7 +55,7 @@ def _load_models():
         model_types = [
             ("lgbm", "lgbm"),
             ("xgb", "xgboost"), 
-            ("catboost", "catboost")
+            ("cat", "catboost")
         ]
         
         for dir_name, model_name in model_types:
