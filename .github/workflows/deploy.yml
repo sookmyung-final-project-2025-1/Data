@@ -75,27 +75,31 @@ jobs:
           
           echo "Validating files in ${MODEL_VER_DIR}"
           
-          # 필수 파일 검증
-          required_files=("preprocessor.pkl" "metadata.json")
-          for file in "${required_files[@]}"; do
-            if [ ! -f "${MODEL_VER_DIR}/${file}" ]; then
-              echo "ERROR: Required file missing: ${file}"
-              echo "Available files:"
-              ls -la "${MODEL_VER_DIR}" || echo "Directory does not exist"
-              exit 1
-            fi
-            echo "✓ Found: ${file}"
+          # 각 모델별 필수 파일 검증
+          models=("lgbm" "xgb" "cat")
+          for model in "${models[@]}"; do
+            echo "Checking ${model} model files..."
+            
+            # 각 모델의 필수 파일들
+            required_files=("${model}_preprocessor.pkl" "${model}_model.pkl" "${model}_metadata.json")
+            
+            for file in "${required_files[@]}"; do
+              if [ ! -f "${MODEL_VER_DIR}/${file}" ]; then
+                echo "ERROR: Required file missing: ${file}"
+                echo "Available files:"
+                ls -la "${MODEL_VER_DIR}" || echo "Directory does not exist"
+                exit 1
+              fi
+              echo "✓ Found: ${file}"
+            done
           done
           
-          # 최소 하나의 모델 파일 존재 확인
-          if ! ls ${MODEL_VER_DIR}/model*.pkl 1> /dev/null 2>&1; then
-            echo "ERROR: No model files found (model*.pkl)"
-            echo "Available files:"
-            ls -la "${MODEL_VER_DIR}"
-            exit 1
+          # 전체 metadata.json 파일 확인 (선택사항)
+          if [ -f "${MODEL_VER_DIR}/metadata.json" ]; then
+            echo "✓ Found global metadata.json"
           fi
           
-          echo "✓ All required files validated"
+          echo "✓ All required model files validated"
           echo "Final file list:"
           ls -lh "${MODEL_VER_DIR}"
 
@@ -175,20 +179,22 @@ jobs:
           echo "Pulling Docker image..."
           sudo docker pull "${IMAGE}:${TAG}"
           
-          sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate model nginx
+          # 모델 컨테이너만 업데이트
+          sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate model
           
           # 헬스체크
           echo "Performing health check..."
           ok=false
           for i in {1..18}; do
-            if curl -fsSLk https://localhost/model/health | grep -q '"status":"ok"'; then
+            if curl -fsSLk http://localhost:8000/health | grep -q '"status":"ok"' 2>/dev/null || \
+               curl -fsSLk http://model:8000/health | grep -q '"status":"ok"' 2>/dev/null; then
               echo "✅ Model deployment successful: ${TAG}"
               docker ps | grep model || true
               ok=true
               break
             fi
             echo "⏳ Waiting for model to be ready... ($i/18)"
-            sleep 5
+            sleep 10
           done
           
           if [ "$ok" != "true" ]; then
@@ -197,8 +203,6 @@ jobs:
             sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml ps || true
             echo "=== Model Logs ==="
             sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=50 model || true
-            echo "=== Nginx Logs ==="
-            sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=20 nginx || true
             exit 1
           fi
 

@@ -1,0 +1,18 @@
+{
+  "payload": {
+    "TransactionDT": 10442147,
+    "TransactionAmt": 311.95,
+    "ProductCD": "W",
+    "card1": 9002,
+    "card2": 453.0,
+    "card3": 150.0,
+    "card4": "visa",
+    "card5": 226.0,
+    "card6": "debit",
+    "addr1": 315.0,
+    "addr2": 87.0,
+    "P_emaildomain": "yahoo.com"
+  },
+  "explain": true,
+  "top_n": 5
+}

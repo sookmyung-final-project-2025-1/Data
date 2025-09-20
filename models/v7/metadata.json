@@ -1,0 +1,101 @@
+{
+  "model_type": "catboost",
+  "n_samples": 590540,
+  "features": null,
+  "params": {
+    "iterations": 500,
+    "depth": 6,
+    "learning_rate": 0.05
+  },
+  "chosen_threshold": 0.1556090392086097,
+  "metrics": {
+    "train": {
+      "roc_auc": 0.8681239025316367,
+      "pr_auc": 0.3715652204449592,
+      "threshold": 0.1556090392086097,
+      "confusion_matrix": {
+        "tn": 445128,
+        "fp": 10774,
+        "fn": 9857,
+        "tp": 6673
+      },
+      "classification_report": {
+        "0": {
+          "precision": 0.9783355495236107,
+          "recall": 0.9763677281521028,
+          "f1-score": 0.977350648324106,
+          "support": 455902.0
+        },
+        "1": {
+          "precision": 0.38247263139794807,
+          "recall": 0.40369026013309134,
+          "f1-score": 0.39279512611472467,
+          "support": 16530.0
+        },
+        "accuracy": 0.9563302231855589,
+        "macro avg": {
+          "precision": 0.6804040904607793,
+          "recall": 0.6900289941425971,
+          "f1-score": 0.6850728872194154,
+          "support": 472432.0
+        },
+        "weighted avg": {
+          "precision": 0.9574868050765427,
+          "recall": 0.9563302231855589,
+          "f1-score": 0.9568975401897691,
+          "support": 472432.0
+        }
+      },
+      "f1": 0.39279512611472467,
+      "precision": 0.38247263139794807,
+      "recall": 0.40369026013309134
+    },
+    "valid": {
+      "roc_auc": 0.8612792525262378,
+      "pr_auc": 0.3401156078177186,
+      "threshold": 0.1556090392086097,
+      "confusion_matrix": {
+        "tn": 111156,
+        "fp": 2819,
+        "fn": 2503,
+        "tp": 1630
+      },
+      "classification_report": {
+        "0": {
+          "precision": 0.9779779867850324,
+          "recall": 0.9752665058126783,
+          "f1-score": 0.976620364268958,
+          "support": 113975.0
+        },
+        "1": {
+          "precision": 0.3663744661721735,
+          "recall": 0.3943866440842003,
+          "f1-score": 0.3798648333721743,
+          "support": 4133.0
+        },
+        "accuracy": 0.9549395468554205,
+        "macro avg": {
+          "precision": 0.672176226478603,
+          "recall": 0.6848265749484392,
+          "f1-score": 0.6782425988205661,
+          "support": 118108.0
+        },
+        "weighted avg": {
+          "precision": 0.9565759026697064,
+          "recall": 0.9549395468554205,
+          "f1-score": 0.955737861735714,
+          "support": 118108.0
+        }
+      },
+      "f1": 0.3798648333721743,
+      "precision": 0.3663744661721735,
+      "recall": 0.3943866440842003
+    },
+    "class_ratio": {
+      "train": 0.03498916246147594,
+      "valid": 0.0349933958749619,
+      "all": 0.03499000914417313
+    }
+  },
+  "notes": "Hold-out(valid) 성능을 metadata에 포함. API threshold는 chosen_threshold 사용 권장."
+}

@@ -1,0 +1,18 @@
+{
+  "payload": {
+    "TransactionDT": 3436459,
+    "TransactionAmt": 222.0,
+    "ProductCD": "W",
+    "card1": 15066,
+    "card2": 170.0,
+    "card3": 150.0,
+    "card4": "mastercard",
+    "card5": 102.0,
+    "card6": "credit",
+    "addr1": 325.0,
+    "addr2": 87.0,
+    "P_emaildomain": null
+  },
+  "explain": true,
+  "top_n": 5
+}
