@@ -24,50 +24,22 @@ lgbm_model = None
 xgb_model = None
 cat_model = None
 
+# 환경변수 사용
+LGBM_DIR = os.environ.get("LGBM_DIR", "/app/models/v5")
+XGB_DIR = os.environ.get("XGB_DIR", "/app/models/v6") 
+CAT_DIR = os.environ.get("CAT_DIR", "/app/models/v7")
+
 @app.on_event("startup")
 def _load_models():
     global lgbm_model, xgb_model, cat_model
-    
-    print(f"Loading models from: {MODEL_DIR}")
-    
-    # 가상 디렉터리 구조 생성
-    setup_virtual_directories()
-    
     try:
-        lgbm_model = FraudModel.load_dir(f"{MODEL_DIR}/v5")
-        xgb_model = FraudModel.load_dir(f"{MODEL_DIR}/v6") 
-        cat_model = FraudModel.load_dir(f"{MODEL_DIR}/v7")
-        print("✅ All models loaded successfully")
+        lgbm_model = FraudModel.load_dir(LGBM_DIR)
+        xgb_model = FraudModel.load_dir(XGB_DIR)
+        cat_model = FraudModel.load_dir(CAT_DIR)
+        print(f"✅ Models loaded: LGBM({LGBM_DIR}), XGB({XGB_DIR}), CAT({CAT_DIR})")
     except Exception as e:
         print(f"❌ Error loading models: {e}")
         raise
-
-def setup_virtual_directories():
-    """flat 파일들을 가상 디렉터리 구조로 구성"""
-    models = [
-        ("lgbm", "v5"),
-        ("xgb", "v6"), 
-        ("cat", "v7")
-    ]
-    
-    for model_name, version in models:
-        # 가상 디렉터리 생성
-        virtual_dir = f"{MODEL_DIR}/{version}"
-        os.makedirs(virtual_dir, exist_ok=True)
-        
-        # flat 파일들을 표준 이름으로 복사
-        src_model = f"{MODEL_DIR}/{model_name}_model.pkl"
-        src_preprocessor = f"{MODEL_DIR}/{model_name}_preprocessor.pkl"
-        
-        dst_model = f"{virtual_dir}/model.pkl"
-        dst_preprocessor = f"{virtual_dir}/preprocessor.pkl"
-        
-        if os.path.exists(src_model) and os.path.exists(src_preprocessor):
-            shutil.copy2(src_model, dst_model)
-            shutil.copy2(src_preprocessor, dst_preprocessor)
-            print(f"✅ Setup virtual directory for {model_name} -> {version}")
-        else:
-            print(f"❌ Missing files for {model_name}")
 
 @app.get("/health")
 def health():
