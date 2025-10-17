@@ -1,7 +1,8 @@
 
 # Fraud Detection 
 
- 사기 거래 탐지 API - 3개 모델 지원 (LGBM, XGBoost, CatBoost)
+ 사기 거래 탐지 API - 3개 모델 지원 (LGBM, XGBoost, CatBoost) 
+ & 3개 모델 Ensemble(Stacking) 
 
 ## 주요 기능
 
